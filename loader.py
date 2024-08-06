@@ -128,13 +128,13 @@ async def method_gather(urls: list[str]):
 async def method_group(urls: list[str]):
     session_timeout = aiohttp.ClientTimeout(total=timeout)
     async with aiohttp.ClientSession(timeout=session_timeout) as session:
-        async with asyncio.TaskGroup() as group:
-            try:
+        try:
+            async with asyncio.TaskGroup() as group:
                 for url in urls:
                     group.create_task(load_url(session, url), name=url)
-            except ExceptionGroup as eg:
-                if eg.subgroup(asyncio.TimeoutError):
-                    print("Warning: some sites were timed out")
+        except ExceptionGroup as eg:
+            if eg.subgroup(asyncio.TimeoutError):
+                print("Warning: some sites were timed out")
     print_report(urls)
 
 
@@ -144,6 +144,6 @@ if __name__ == '__main__':
     print("Output directory: ", output_dir)
     print('Timeout:', timeout)
     methods = [method_as_completed, method_wait, method_group, method_gather]
-    method = random.choice(methods)
+    method = method_group  # random.choice(methods)
     print('Using', method.__name__)
     asyncio.run(method(get_site_list()))

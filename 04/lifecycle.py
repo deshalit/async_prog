@@ -16,6 +16,7 @@ class Philosophers:
     async def acquire_forks(self, forks: tuple, philosopher: int):
         """Get exclusive access to the both forks"""
         await asyncio.gather(*[self.acquire_fork(fork, philosopher) for fork in forks])
+        print(f'Philisopher {philosopher} has acquired both forks')
 
     def create_fork(self):
         """Create a "fork" synchronization object """
@@ -24,11 +25,13 @@ class Philosophers:
     @staticmethod
     async def eating(philosopher: int):
         duration = random.randint(*EATING_TIME)
+        print(f'Philisopher {philosopher} is eating')
         await asyncio.sleep(duration)
 
     @staticmethod
     async def thinking(philosopher: int):
         duration = random.randint(*THINKING_TIME)
+        print(f'Philisopher {philosopher} is thinking')
         await asyncio.sleep(duration)
 
     async def release_fork(self, fork, philosopher: int):
@@ -39,6 +42,7 @@ class Philosophers:
         """Release exclusive access to both forks"""
         for fork in forks:
             await self.release_fork(fork, philosopher)
+        print(f'Philisopher {philosopher} has released both forks')
 
     async def philosopher(self, number: int, forks):
         """Task describes "daily life" of each philosopher """
@@ -50,7 +54,6 @@ class Philosophers:
                 await self.eating(number)
                 meals += 1
                 await self.release_forks(forks, number)
-                print(f'Pholosopher #{number} has eaten')
         finally:
             print(f'Pholosopher #{number} ate {meals} times')
 

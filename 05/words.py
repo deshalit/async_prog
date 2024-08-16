@@ -17,6 +17,6 @@ if __name__ == "__main__":
     word = args.word
     print(f'The word: "{word}"')
 
-    method = OffsetCountMethod(file_name, word)
-    # method = LineIndexesMethod(file_name, word)
+    # method = OffsetCountMethod(file_name, word)
+    method = LineIndexesMethod(file_name, word)
     method.execute()

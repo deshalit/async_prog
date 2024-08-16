@@ -6,7 +6,10 @@ from contextlib import contextmanager
 from concurrent.futures import ProcessPoolExecutor
 from argparse import ArgumentParser
 
-from consts import MAX_CPU, DEFAULT_WORD, MONITORING_INTERVAL, NOTIFICATION_STEP
+DEFAULT_WORD = "ära"
+MAX_CPU = 8
+MONITORING_INTERVAL = 5
+NOTIFICATION_STEP = 1_00_000
 
 Chunk = list[int]
 Chunks = list[Chunk]

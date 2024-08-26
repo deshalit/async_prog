@@ -1,0 +1,4 @@
+gunicorn
+uvicorn
+starlette
+fastapi

@@ -1,0 +1,1 @@
+ uvicorn hello_starlette:app --reload --port 8002

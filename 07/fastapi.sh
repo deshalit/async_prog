@@ -1,0 +1,1 @@
+uvicorn hello_fastapi:app --reload --port 8003

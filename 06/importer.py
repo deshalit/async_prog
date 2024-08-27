@@ -92,7 +92,7 @@ async def import_monitor(worker_id: int, tasks: list[asyncio.Task], queue: async
         await asyncio.sleep(IMPORT_MONITOR_INTERVAL)
         done_tasks = [task for task in tasks if task.done() or task.cancelled()]
         batches_remain = queue.qsize()
-        progress = ((batches_total-batches_remain) * 100) // batches_total
+        progress = ((batches_total-batches_remain) * 100) // (batches_total + 1)
         if progress > last_progress:
             print('Worker', worker_id, ': imported', progress, '%')
             last_progress = progress

@@ -2,21 +2,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, async_sessi
 from config import DB_URI, DB_ECHO
 from models import Base
 
-# _engine: AsyncEngine = None
-
 
 def get_engine() -> AsyncEngine:
     return create_async_engine(
         DB_URI,
         echo=DB_ECHO,
     )
-    # global  _engine
-    # if _engine is None:
-    #     _engine = create_async_engine(
-    #         DB_URI,
-    #         echo=DB_ECHO,
-    #     )
-    # return _engine
 
 
 async def create_db():

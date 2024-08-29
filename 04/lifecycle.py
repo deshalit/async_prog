@@ -1,8 +1,8 @@
 import asyncio
 import random
 
-THINKING_TIME = 2, 5
-EATING_TIME = 2, 5
+THINKING_TIME = 2
+EATING_TIME = 2
 PHILOSOPHER_COUNT = 5
 FORK_COUNT = PHILOSOPHER_COUNT
 DAILY_CYCLE = 3
@@ -100,7 +100,7 @@ class Philosopher:
 
     def set_state(self, new_state):
         old_state, self.state = self.state, new_state
-        print("Member", self.number, f"changed state from '{old_state}' to '{self.state}'")
+        # print("Member", self.number, f"changed state from '{old_state}' to '{self.state}'")
 
     async def release_forks(self):
         """Release exclusive access to both forks"""
@@ -110,13 +110,13 @@ class Philosopher:
 
     async def eating(self):
         self.set_state(State.EATING)
-        duration = random.randint(*EATING_TIME)
+        duration = EATING_TIME
         await asyncio.sleep(duration)
         self.meal_count += 1
 
     async def thinking(self):
         self.set_state(State.THINKING)
-        duration = random.randint(*THINKING_TIME)
+        duration = THINKING_TIME
         await asyncio.sleep(duration)
 
     async def daily_life(self):
@@ -162,8 +162,11 @@ class PhilosopherClub:
         tasks = [
             asyncio.create_task(p.daily_life(), name=str(p.number)) for p in self.members
         ]
-        monitor_task = asyncio.create_task(self.monitoring())
-        await asyncio.gather(monitor_task, *tasks)
+        # monitor_task = asyncio.create_task(self.monitoring())
+        await asyncio.gather(
+            # monitor_task,
+            *tasks
+        )
 
 
 if __name__ == '__main__':

@@ -15,21 +15,21 @@ def get_cve_id_field() -> Field:
         examples=['CVE-2001-0001', 'CVE-2020-20341']
     )
 
+def get_lang_field() -> Field:
+    return Field('en', max_length=5)
+
+
 class CveBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CveId(CveBaseModel):
-    id: str = get_cve_id_field()
-
-
 class Description(CveBaseModel):
-    lang: str = Field('en', max_length=5)
+    lang: str = get_lang_field()
     text: str
 
 
 class ProblemType(CveBaseModel):
-    lang: str
+    lang: str = get_lang_field()
     text: str
 
 
@@ -38,7 +38,8 @@ class Reference(CveBaseModel):
     url: str
 
 
-class Cve(CveId):
+class Cve(CveBaseModel):
+    id: str = get_cve_id_field()
     title: str
     date_published: datetime
     date_updated: datetime

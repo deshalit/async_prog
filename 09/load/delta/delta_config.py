@@ -7,3 +7,6 @@ class DeltaConfig:
     MAX_DOWNLOAD_TASK_COUNT = 10
     CHECK_INTERVAL = 60 * 1
     LOG_LEVEL = logging.DEBUG
+    SERVICE_HOST = 'localhost'
+    SERVICE_PORT = 8001
+    MESSAGE = 'changed'

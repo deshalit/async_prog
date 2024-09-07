@@ -1,10 +1,10 @@
 import logging
 
 class LoaderConfig:
-    URI = "http://localhost:8000/api/cves/bulk"
-    """Endpoint to post data"""
+    DB_API_ENDPOINT = "http://localhost:8000/api/cves/bulk"
+    """Endpoint to post data to the CVE database service"""
 
-    DIR = "./cves"
+    DIR = "/home/oleksandr/prj/async_prog/exercises/09/cves/cvelistV5-main/cves"
     """Directory that stores json-files with CVE records to import"""
 
     PARSE_NOTIFY_LIMIT = 3000
@@ -16,7 +16,7 @@ class LoaderConfig:
     IMPORT_MONITOR_INTERVAL = 7
     """The number of seconds after which the import progress info is updated"""
 
-    BATCH_SIZE = 200
+    BATCH_SIZE = 400
     """The number of CVE records (and their secondary entities) that are uploaded to the server at one time"""
 
     LOG_LEVEL = logging.INFO

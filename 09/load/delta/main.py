@@ -16,7 +16,9 @@ sys.path.append(
         os.path.dirname(__file__)
     )
 )
-from loader_config import Config
+from loader_config import LoaderConfig
+from socket_server import SocketServer
+
 
 logging.basicConfig(level=cfg.LOG_LEVEL)
 logger = logging.getLogger('delta_checker')
@@ -25,7 +27,7 @@ pattern = re.compile(r'(\d{4}-\d{2}.+)\",$')
 
 
 def get_local_last_datetime() -> datetime:
-    file_name = os.path.join(Config.DIR, cfg.DELTA_FILE_NAME)
+    file_name = os.path.join(LoaderConfig.DIR, cfg.DELTA_FILE_NAME)
     logger.info(f'Reading "{file_name}"')
     with open(file_name, 'r') as f:
         delta = json.load(f)
@@ -35,7 +37,7 @@ def get_local_last_datetime() -> datetime:
 
 
 async def set_local_last_datetime(delta: dict):
-    file_name = os.path.join(Config.DIR, cfg.DELTA_FILE_NAME)
+    file_name = os.path.join(LoaderConfig.DIR, cfg.DELTA_FILE_NAME)
     logger.info(f'Writing "{file_name}"')
     async with aiofiles.open(file_name, 'w') as f:
         json.dump(delta, f)
@@ -50,7 +52,7 @@ async def fetch_and_save_files(queue: asyncio.Queue, session: aiohttp.ClientSess
             if not response.ok:
                 logger.error(f'Cannot reach {url}: code {response.status}, answer is "{response.text()}"')
             data = await response.json()
-        file_name = os.path.join(Config.DIR, data["cveMetadata"]["cveId"] + '.json')
+        file_name = os.path.join(LoaderConfig.DIR, data["cveMetadata"]["cveId"] + '.json')
         async with aiofiles.open(file_name, 'w') as f:
             json.dump(data, f, indent=4)
         logger.debug(f'CVE file "{file_name}" has written')
@@ -65,14 +67,15 @@ async def find_next_fetch_time(stream: aiohttp.StreamReader, lines: list[str]) -
     return datetime.fromisoformat(time_string[0])
 
 
-async def get_newest_delta(session: ClientSession, local_date: datetime) -> dict | False:
+async def get_newest_delta(session: ClientSession, local_date: datetime):
     url = cfg.URL_PATH + cfg.DELTA_FILE_NAME
     logger.info(f'Getting "{url}"')
     async with session.get(url) as response:
         if response.status != 200:
-            logger.error(f'Cannot read {url}: code {response.status}, answer is "{response.text()}"')
+            logger.error(f'Cannot read {url}: code {response.status}')
             return False
-        delta = await response.json()
+        text = await response.text()
+        delta = json.loads(text)
     fetch_time = datetime.fromisoformat(delta['fetchTime'])
     if fetch_time == local_date:
         logger.info('The last fetch time is still unchanged')
@@ -110,10 +113,10 @@ async def download_files(session: ClientSession, local_date: datetime) -> bool:
 
     task_count = max(1, min(record_count // 5, cfg.MAX_DOWNLOAD_TASK_COUNT))
     logger.debug(f'The number of tasks: {task_count}')
-    tasks = [
-        asyncio.create_task(fetch_and_save_files(queue, session) for _ in range(task_count))
-    ]
-    await asyncio.wait(*tasks)
+    tasks = []
+    for _ in range(task_count):
+        tasks.append(asyncio.create_task(fetch_and_save_files(queue, session)))
+    await asyncio.wait(tasks)
 
 
 async def notify_download_complete():
@@ -130,11 +133,18 @@ async def check_delta() -> bool:
     return delta
 
 
-async def main():
+async def delta_task():
     while True:
         if await check_delta():
             await notify_download_complete()
         await asyncio.sleep(cfg.CHECK_INTERVAL)
+
+
+async def main():
+    await asyncio.gather(
+        asyncio.create_task(delta_task()),
+        asyncio.create_task(SocketServer.run())
+    )
 
 
 if __name__ == '__main__':

@@ -1,67 +1,117 @@
+import os
 import asyncio
 import logging
-import aiohttp
-from aiohttp import ClientSession
-from itertools import batched
+import multiprocessing as mp
+
+from scanner import collect_files, FileNames
 from loader_config import LoaderConfig as cfg
+from parser import parse_cve_file
+from importer import Importer, ParsedFiles
 
 
-ParsedFiles = dict[str, dict | bool]
+logging.basicConfig(level=cfg.LOG_LEVEL)
 
 
-class Loader:
+class LoaderException(Exception):
+    pass
 
-    def __init__(self, worker_id: int, logger: logging.Logger, files: ParsedFiles):
-        self.worker_id = worker_id
-        self.queue = asyncio.Queue()
-        self.bad_queue = asyncio.Queue()
-        self.logger = logger
-        self.parsed_files = files
 
-    async def import_batch(self, session: aiohttp.ClientSession, batch: list[str]):
-        record_values = [
-            self.parsed_files[file_name] for file_name in batch
-        ]
-        async with session.post(cfg.URI, json=record_values) as response:
-            if response.status == 201:
-                for file_name in batch:
-                    self.parsed_files[file_name] = True
-            else:
-                self.logger.error(f'Failed to post. Status: {response.status}, '
-                                  f'reason: "{response.reason}", text: "{response.text()}"')
+def clean_files(worker_no: int, files: ParsedFiles, logger: logging.Logger):
+    logger.info(f'Worker {worker_no}: cleaning the directory {cfg.DIR}')
+    for file, result in files.items():
+        if result is True:
+            delete_file(file)
+    logger.info(f'Worker {worker_no}: cleaning completed')
 
-    async def import_many(self, session: aiohttp.ClientSession):
-        while not self.queue.empty():
-            batch: list[str] = await self.queue.get()
-            await asyncio.sleep(.1)
-            await self.import_batch(session, batch)
 
-    async def execute_many(self):
-        for batch in batched(self.parsed_files, cfg.BATCH_SIZE):
-            await self.queue.put(batch)
-        print('Worker', self.worker_id, ': input queue contains', self.queue.qsize(), 'batches')
-        task_count = cfg.IMPORT_TASK_COUNT
-        async with ClientSession() as session:
-            tasks = [
-                asyncio.create_task(self.import_many(session)) for _ in range(task_count)
-            ]
-            await asyncio.gather(
-                *tasks,
-                asyncio.create_task(self.import_monitor(tasks))
+def delete_file(file: str):
+    os.unlink(file)
+
+
+def parse_files(worker_no: int, files: FileNames, logger: logging.Logger) -> ParsedFiles:
+    portion, parsed_files, total = dict(), dict(), len(files)
+    logger.info(f'Worker {worker_no}: {total} files to be parsed')
+    for file in files:
+        content = parse_cve_file(file)
+        if not content:
+            logger.debug(f'Worker {worker_no}: file "{file}" was ignored')
+            delete_file(file)
+        else:
+            portion[file] = content
+            if len(portion) >= cfg.PARSE_NOTIFY_LIMIT:
+                parsed_files.update(portion)
+                portion = dict()
+                logger.info(f'Worker {worker_no}: parsed {(len(parsed_files) * 100) // total} %')
+    if portion:
+        parsed_files.update(portion)
+    logger.info(f'Worker {worker_no}: parsing is complete: {len(parsed_files)} files are ready')
+    return parsed_files
+
+
+def mp_handler(worker_no: int, files: FileNames):
+    logger = logging.getLogger(f'loader.{worker_no}')
+    parsed_files = parse_files(worker_no, files, logger)
+
+    logger.info(f'Worker {worker_no}: start importing')
+    loader = Importer(worker_no, logger, parsed_files)
+    asyncio.run(loader.execute_many())
+    logger.info(f'Worker {worker_no}: import completed')
+
+    clean_files(worker_no, loader.parsed_files, logger)
+
+
+async def scan_directory(logger: logging.Logger) -> FileNames:
+    cve_path = cfg.DIR
+    if not os.path.exists(cve_path):
+        raise LoaderException(f'Invalid directory "{cve_path}"')
+    logger.info(f'Start scanning from "{cve_path}"')
+    files = await collect_files(cve_path)
+    total_file_count = len(files)
+    logger.info(f'Files collected: {total_file_count}')
+    return files
+
+
+def prepare_execution(files: FileNames, logger: logging.Logger) -> list[list[str]]:
+    total_file_count = len(files)
+    worker_count = 1 if total_file_count < 100 else mp.cpu_count()
+    logger.debug(f'Worker count: {worker_count}')
+    chunk_size = total_file_count // worker_count
+    chunks = []
+    for i in range(worker_count):
+        chunks.append(
+            files[chunk_size * i: chunk_size * (i + 1)]
+        )
+    chunks[-1] += files[chunk_size * worker_count:]
+    return chunks
+
+
+async def load():
+    logger = logging.getLogger('loading.main')
+
+    files = await scan_directory(logger)
+    chunks = prepare_execution(files, logger)
+
+    processes = []
+    for worker_no, chunk in enumerate(chunks, 1):
+        processes.append(
+            mp.Process(
+                target=mp_handler,
+                args=(worker_no, chunk),
+                daemon=True
             )
+        )
+    try:
+        for process in processes:
+            process.start()
+        while True:
+            alive_processes = [process for process in processes if process.is_alive()]
+            if not alive_processes:
+                break
+    except KeyboardInterrupt:
+        for process in processes:
+            process.terminate()
+            process.join()
 
-    async def import_monitor(self, tasks: list[asyncio.Task]):
-        batches_total = self.queue.qsize()
-        last_progress = 0
-        done_tasks = []
-        print('Worker', self.worker_id, ': task monitor started (there are', len(tasks), 'tasks)')
-        while len(done_tasks) < len(tasks):
-            await asyncio.sleep(cfg.IMPORT_MONITOR_INTERVAL)
-            done_tasks = [task for task in tasks if task.done() or task.cancelled()]
-            remain = self.queue.qsize()
-            progress = ((batches_total - remain) * 100) // (batches_total + 1)
-            if progress > last_progress:
-                print('Worker', self.worker_id, ': imported', progress, '%')
-                last_progress = progress
 
-        print('Worker', self.worker_id, ': task monitor finished')
+if __name__ == '__main__':
+    asyncio.run(load())

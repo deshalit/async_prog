@@ -6,7 +6,8 @@ class DeltaConfig:
     URL_PATH = 'https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/'
     MAX_DOWNLOAD_TASK_COUNT = 10
     CHECK_INTERVAL = 60 * 1
-    LOG_LEVEL = logging.DEBUG
+    LOG_LEVEL = logging.INFO
     SERVICE_HOST = 'localhost'
     SERVICE_PORT = 8001
     MESSAGE = 'changed'
+    MONITOR_INTERVAL = 5
